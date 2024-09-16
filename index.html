@@ -38,6 +38,7 @@
 
       .player {
         max-width: 480px;
+        width: 100%;
         margin: 0 auto;
       }
     </style>
@@ -143,9 +144,10 @@
         />
         <button
           type="submit"
-          class="bg-blue-bsky font-bold text-white rounded px-4 shadow font-bold hover:bg-blue-600 transition-colors font-mono text-4xl"
+          class="bg-blue-bsky text-white rounded-full px-4 shadow hover:bg-blue-600 transition-colors flex items-center gap-2 font-bold"
         >
-          ⇩
+          <span class="text-2xl">⇩</span>
+          <span>Start</span>
         </button>
       </form>
 
@@ -171,9 +173,60 @@
       >
 
       <!-- Video preview -->
-      <video v-if="videoPreviewVisible" :key="postUrl" controls class="player">
+      <video
+        v-if="videoPreviewVisible"
+        :key="postUrl"
+        controls
+        class="player rounded shadow overflow-hidden my-2"
+      >
         <source :src="downloadLink" type="video/mp4" />
       </video>
+
+      <div class="mt-6" v-if="urlHistory.length > 0">
+        <table
+          class="min-w-full bg-white border border-gray-300 shadow-md overflow-hidden rounded-lg"
+        >
+          <thead class="bg-blue-bsky text-white">
+            <tr>
+              <th class="px-4 py-2 border-b" colspan="2">History</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="(url, index) in urlHistory"
+              :key="url"
+              :class="{
+                'bg-gray-100': index % 2 !== 0,
+                'bg-gray-50': index % 2 === 0
+              }"
+            >
+              <td class="px-4 py-2 border-b">
+                <a
+                  :href="url"
+                  class="text-blue-bsky border-b"
+                  target="_blank"
+                  rel="noopener"
+                  >{{ url }}</a
+                >
+              </td>
+              <td class="px-4 py-2 border-b text-right">
+                <button
+                  class="bg-blue-bsky text-white px-3 py-2 rounded-full font-bold hover:bg-blue-600 text-xs shadow"
+                  @click="fillAndDownload(url)"
+                >
+                  Re-Download
+                </button>
+                <button
+                  class="bg-red-500 text-white px-3 py-2 rounded-full font-bold hover:bg-red-600 ml-2 text-xs shadow"
+                  @click="removeFromHistory(url)"
+                >
+                  Remove
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <div class="mt-8 mb-4 text-center text-xs lowercase">
@@ -200,9 +253,59 @@
             videoPreviewUrl: "",
             downloadReady: false,
             downloadLink: "",
+            urlHistory: [], // List of URLs stored in localStorage
           };
         },
+        mounted() {
+          // Load history from localStorage
+          this.loadHistory();
+
+          // Check for the 'url' query parameter and set postUrl
+          const urlParams = new URLSearchParams(window.location.search);
+          const url = urlParams.get("url");
+          if (url) {
+            this.postUrl = url;
+            this.processVideo(); // Automatically run processVideo if the url is filled
+          }
+        },
         methods: {
+          loadHistory() {
+            // Load the saved URLs from localStorage
+            const savedHistory =
+              JSON.parse(localStorage.getItem("urlHistory")) || [];
+            this.urlHistory = savedHistory.slice(0, 20); // Keep only the last 20 URLs
+          },
+          saveToHistory(url) {
+            // Check if the URL already exists in the history
+            const existingIndex = this.urlHistory.indexOf(url);
+            if (existingIndex !== -1) {
+              // Remove the existing URL to avoid duplicates
+              this.urlHistory.splice(existingIndex, 1);
+            }
+
+            // Add the URL to the beginning of the history array
+            this.urlHistory.unshift(url);
+
+            // Keep only the last 20 entries
+            if (this.urlHistory.length > 20) {
+              this.urlHistory.pop();
+            }
+
+            // Save the updated history in localStorage
+            localStorage.setItem("urlHistory", JSON.stringify(this.urlHistory));
+          },
+          removeFromHistory(url) {
+            // Remove the URL from history
+            this.urlHistory = this.urlHistory.filter((item) => item !== url);
+
+            // Save the updated history to localStorage
+            localStorage.setItem("urlHistory", JSON.stringify(this.urlHistory));
+          },
+          fillAndDownload(url) {
+            // Fill the form with the selected URL and trigger the download process
+            this.postUrl = url;
+            this.processVideo();
+          },
           async processVideo() {
             this.resetState();
 
@@ -249,7 +352,15 @@
               ffmpeg.FS("writeFile", "input.ts", await fetchFile(videoBlob));
 
               this.status = "Converting to mp4...";
-              await ffmpeg.run("-i", "input.ts", `video-${post}.mp4`);
+              await ffmpeg.run(
+                "-i",
+                "input.ts",
+                "-map",
+                "0",
+                "-c",
+                "copy",
+                `video-${post}.mp4`
+              );
               this.progress = 100;
 
               const videoData = ffmpeg.FS("readFile", `video-${post}.mp4`);
@@ -262,6 +373,9 @@
               this.progressBarVisible = false;
               this.videoPreviewVisible = true;
               this.status = "Video ready to download!";
+
+              // Save the current URL to the history
+              this.saveToHistory(this.postUrl);
             } catch (error) {
               this.status =
                 error.message || "An error occurred. Please try again.";
