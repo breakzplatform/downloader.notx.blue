@@ -26,7 +26,7 @@
       name="twitter:image"
       content="https://downloader.notx.blue/share.png"
     />
-    <link href="tailwind.min.css" rel="stylesheet" />
+    <link href="res/tailwind.min.css" rel="stylesheet" />
     <style>
       .text-blue-bsky {
         color: rgb(32, 139, 254);
@@ -36,14 +36,22 @@
         background-color: rgb(32, 139, 254);
       }
 
+      .bg-blue-kofi {
+        background-color: #13c3ff;
+      }
+
+      .bg-orange-apoiase {
+        background-color: #ec4b3c;
+      }
+
       .player {
         max-width: 480px;
         width: 100%;
         margin: 0 auto;
       }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.10.0/dist/ffmpeg.min.js"></script>
-    <script src="vue.js"></script>
+    <script src="res/ffmpeg.min.js"></script>
+    <script src="res/vue.min.js"></script>
     <link
       rel="icon"
       href="data:image/svg+xml,&lt;svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22&gt;&lt;text y=%22.9em%22 font-size=%2290%22&gt;⬇️&lt;/text&gt;&lt;/svg&gt;"
@@ -55,6 +63,7 @@
       href="https://share.notx.blue/"
       target="_blank"
       ref="alert"
+      rel="noopener"
       class="block bg-blue-100 text-blue-800 px-4 -m-4 py-2 text-xs"
     >
       💙 Easily share from ANY website to Bluesky: install the
@@ -121,7 +130,7 @@
       •
       <a
         href="https://github.com/breakzplatform/downloader.notx.blue"
-        class="text-blue-bsky"
+        class="text-blue-bsky font-bold"
         >View-source</a
       >
     </div>
@@ -138,22 +147,69 @@
         <input
           v-model="postUrl"
           type="text"
-          class="w-full p-2 border rounded flwx-grow mr-2 shadow"
+          class="w-full p-2 border rounded flwx-grow mr-2 shadow bg-blue-50"
           placeholder="https://bsky.app/profile/kaelltx.bsky.social/post/3l4aiybdeoo2q"
           required
         />
         <button
           type="submit"
+          :disabled="status.length > 0"
           class="bg-blue-bsky text-white rounded-full px-4 shadow hover:bg-blue-600 transition-colors flex items-center gap-2 font-bold"
         >
-          <span class="text-2xl">⇩</span>
+          <span class="mr-1">
+            <svg
+              fill="#fff"
+              height="20px"
+              width="20px"
+              viewBox="0 0 29.978 29.978"
+            >
+              <g>
+                <path
+                  d="M25.462,19.105v6.848H4.515v-6.848H0.489v8.861c0,1.111,0.9,2.012,2.016,2.012h24.967c1.115,0,2.016-0.9,2.016-2.012
+      v-8.861H25.462z"
+                />
+                <path
+                  d="M14.62,18.426l-5.764-6.965c0,0-0.877-0.828,0.074-0.828s3.248,0,3.248,0s0-0.557,0-1.416c0-2.449,0-6.906,0-8.723
+      c0,0-0.129-0.494,0.615-0.494c0.75,0,4.035,0,4.572,0c0.536,0,0.524,0.416,0.524,0.416c0,1.762,0,6.373,0,8.742
+      c0,0.768,0,1.266,0,1.266s1.842,0,2.998,0c1.154,0,0.285,0.867,0.285,0.867s-4.904,6.51-5.588,7.193
+      C15.092,18.979,14.62,18.426,14.62,18.426z"
+                />
+              </g>
+            </svg>
+          </span>
           <span>Start</span>
         </button>
       </form>
 
+      <div class="my-4">
+        <a
+          v-if="downloadReady"
+          :href="downloadLink"
+          class="block w-full bg-green-600 text-white text-center py-2 rounded hover:bg-green-700 transition-colors mb-2 font-bold text-xl"
+          download
+          >Download Converted (.mp4)</a
+        >
+
+        <a
+          v-if="originalDownloadLink"
+          :href="originalDownloadLink"
+          class="block w-full bg-green-500 text-white text-center py-2 rounded hover:bg-green-600 transition-colors mb-2 font-bold"
+          download
+          >Download Original (.ts)</a
+        >
+
+        <a
+          v-if="downloadReady && subtitleUrl.length > 0"
+          :href="subtitleUrl"
+          class="block w-full bg-blue-500 text-white text-center py-2 rounded hover:bg-blue-600 transition-colors mb-2 text-sm font-bold"
+          download
+          >Download Subtitles ({{subtitleLang}}.vtt)</a
+        >
+      </div>
+
       <div
         v-if="progressBarVisible"
-        class="w-full bg-gray-300 rounded h-8 mb-4 mt-4"
+        class="w-full bg-gray-300 rounded h-8 mb-4"
       >
         <div
           class="bg-green-500 h-full rounded transition-all duration-300"
@@ -164,31 +220,34 @@
         {{ status }}
       </div>
 
-      <a
-        v-if="downloadReady"
-        :href="downloadLink"
-        class="block w-full bg-green-500 text-white text-center py-2 rounded hover:bg-green-600 transition-colors mb-4 font-bold"
-        download
-        >Download Video (.mp4)</a
-      >
+      <div class="py-4" v-if="videoPreviewVisible">
+        <video
+          :key="postUrl"
+          controls
+          class="player rounded shadow overflow-hidden bg-black"
+          preload="metadata"
+        >
+          <source :src="downloadLink" type="video/mp4" />
+          <track
+            :label="subtitleLang"
+            kind="subtitles"
+            v-if="downloadReady && subtitleUrl.length > 0"
+            :srclang="subtitleLang"
+            :src="subtitleUrl"
+            default
+          />
+        </video>
+      </div>
 
-      <!-- Video preview -->
-      <video
-        v-if="videoPreviewVisible"
-        :key="postUrl"
-        controls
-        class="player rounded shadow overflow-hidden my-2"
-      >
-        <source :src="downloadLink" type="video/mp4" />
-      </video>
-
-      <div class="mt-6" v-if="urlHistory.length > 0">
+      <div class="mt-6 overflow-auto" v-if="urlHistory.length > 0">
         <table
-          class="min-w-full bg-white border border-gray-300 shadow-md overflow-hidden rounded-lg"
+          class="table-auto w-full bg-white shadow-md overflow-hidden rounded-lg"
         >
           <thead class="bg-blue-bsky text-white">
             <tr>
-              <th class="px-4 py-2 border-b" colspan="2">History</th>
+              <th class="px-4 py-2 border-b text-left text-xs" colspan="2">
+                History
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -209,9 +268,12 @@
                   >{{ url }}</a
                 >
               </td>
-              <td class="px-4 py-2 border-b text-right">
+              <td
+                class="px-2 py-2 border-b text-right"
+                style="min-width: 220px"
+              >
                 <button
-                  class="bg-blue-bsky text-white px-3 py-2 rounded-full font-bold hover:bg-blue-600 text-xs shadow"
+                  class="bg-blue-bsky text-white px-3 py-2 mb-2 rounded-full font-bold hover:bg-blue-600 text-xs shadow"
                   @click="fillAndDownload(url)"
                 >
                   Re-Download
@@ -229,10 +291,35 @@
       </div>
     </div>
 
-    <div class="mt-8 mb-4 text-center text-xs lowercase">
-      Directly from Brazil by Joselito, with much love and care. This site does
-      not use any cookies or collect any data. This site is not related to
-      Bluesky.
+    <div class="mt-8 mb-6 text-center text-xs">
+      <div class="lowercase mb-6">
+        Directly from Brazil by Joselito, with much love and care. This site
+        does not use any cookies or collect any data. This site is not related
+        to Bluesky.
+      </div>
+      <div>
+        <a
+          href="https://apoia.se/joselito"
+          target="_blank"
+          rel="noopener"
+          class="bg-orange-apoiase text-white px-3 font-mono py-2 rounded-full font-bold hover:bg-blue-600 ml-2 text-xs shadow"
+          >APOIA.se</a
+        >
+        <a
+          href="https://ko-fi.com/joselito"
+          target="_blank"
+          rel="noopener"
+          class="bg-blue-kofi text-white px-3 py-2 font-mono rounded-full font-bold hover:bg-blue-600 ml-2 text-xs shadow"
+          >Ko-fi</a
+        >
+        <a
+          href="https://github.com/sponsors/breakzplatform"
+          target="_blank"
+          rel="noopener"
+          class="bg-gray-700 text-white px-3 py-2 font-mono rounded-full font-bold hover:bg-blue-600 ml-2 text-xs shadow"
+          >GitHub</a
+        >
+      </div>
     </div>
     <div class="mb-6 text-center text-xs lowercase">
       Respect copyright and Bluesky's terms of service.
@@ -243,6 +330,7 @@
       Vue.createApp({
         data() {
           return {
+            ffmpeg: null,
             postUrl: "",
             status: "",
             progress: 0,
@@ -252,13 +340,25 @@
             videoPreviewVisible: false,
             videoPreviewUrl: "",
             downloadReady: false,
+            originalDownloadLink: "",
             downloadLink: "",
             urlHistory: [], // List of URLs stored in localStorage
+            subtitleLang: "",
+            subtitleUrl: "",
           };
         },
-        mounted() {
+        async mounted() {
           // Load history from localStorage
           this.loadHistory();
+
+          this.ffmpeg = createFFmpeg({
+            log: false,
+            progress: ({ ratio }) => {
+              this.progress = parseInt((ratio * 100).toFixed(2) / 2) + 50;
+            },
+          });
+
+          if (!this.ffmpeg.isLoaded()) this.ffmpeg.load();
 
           // Check for the 'url' query parameter and set postUrl
           const urlParams = new URLSearchParams(window.location.search);
@@ -310,26 +410,17 @@
             this.resetState();
 
             const postUrl = this.postUrl;
-            this.status = "Processing...";
 
-            const ffmpeg = createFFmpeg({
-              log: false,
-              progress: ({ ratio }) => {
-                this.progress = parseInt((ratio * 100).toFixed(2) / 2) + 50;
-              },
-            });
-
-            if (!ffmpeg.isLoaded()) await ffmpeg.load();
-
+            this.status = "Initializing...";
             this.downloadLink = "";
             this.downloadReady = false;
             this.videoPreviewVisible = false;
 
             try {
               const { profile, post } = this.extractProfileAndPost(postUrl);
-              const threadRes = await fetch(
-                `https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=at://${profile}/app.bsky.feed.post/${post}&depth=10`
-              );
+              const threadRes = await fetch(`
+                https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=at://${profile}/app.bsky.feed.post/${post}&depth=10
+              `);
               const data = await threadRes.json();
 
               let playlistUrl;
@@ -348,11 +439,24 @@
               this.status = "Downloading...";
               this.progressBarVisible = true;
 
-              const videoBlob = await this.proccessPlaylist(playlistUrl);
-              ffmpeg.FS("writeFile", "input.ts", await fetchFile(videoBlob));
+              const [videoBlob] = await Promise.all([
+                this.proccessPlaylist(playlistUrl),
+                this.ffmpeg.isLoaded() ? Promise.resolve() : this.ffmpeg.load(),
+              ]);
+
+              this.status = "Processing...";
+
+              this.originalDownloadLink = URL.createObjectURL(videoBlob);
 
               this.status = "Converting to mp4...";
-              await ffmpeg.run(
+
+              this.ffmpeg.FS(
+                "writeFile",
+                "input.ts",
+                await fetchFile(videoBlob)
+              );
+
+              await this.ffmpeg.run(
                 "-i",
                 "input.ts",
                 "-map",
@@ -363,7 +467,7 @@
               );
               this.progress = 100;
 
-              const videoData = ffmpeg.FS("readFile", `video-${post}.mp4`);
+              const videoData = this.ffmpeg.FS("readFile", `video-${post}.mp4`);
               const mp4Blob = new Blob([videoData.buffer], {
                 type: "video/mp4",
               });
@@ -372,13 +476,42 @@
               this.downloadReady = true;
               this.progressBarVisible = false;
               this.videoPreviewVisible = true;
-              this.status = "Video ready to download!";
+              this.status = "";
 
               // Save the current URL to the history
               this.saveToHistory(this.postUrl);
             } catch (error) {
+              this.status = "Downloading...";
+              const { profile, post } = this.extractProfileAndPost(
+                this.postUrl
+              );
+              const threadRes = await fetch(
+                `https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=at://${profile}/app.bsky.feed.post/${post}&depth=10`
+              );
+              const data = await threadRes.json();
+
+              let playlistUrl;
+
+              if (
+                data.thread.post.embed["$type"] === "app.bsky.embed.video#view"
+              ) {
+                playlistUrl = data.thread.post.embed.playlist;
+              } else if (
+                data.thread.post.embed["$type"] ===
+                "app.bsky.embed.recordWithMedia#view"
+              ) {
+                playlistUrl = data.thread.post.embed.media.playlist;
+              }
+
+              const videoBlob = this.proccessPlaylist(playlistUrl);
+              this.originalDownloadLink = URL.createObjectURL(videoBlob);
+
               this.status =
                 error.message || "An error occurred. Please try again.";
+
+              if (this.status === "Out of memory")
+                this.status =
+                  "Your device is out of memory to convert the file. Please close other tabs and/or apps and try again later.";
             }
           },
           extractProfileAndPost(postUrl) {
@@ -390,6 +523,12 @@
           async proccessPlaylist(playlistUrl) {
             const masterPlaylistResponse = await fetch(playlistUrl);
             const masterPlaylist = await masterPlaylistResponse.text();
+
+            await this.setSubtitleUrl(
+              playlistUrl,
+              this.extractSubtitleLang(masterPlaylist)
+            );
+
             const videoPlaylistUrl = this.parseHighestQualityVideoUrl(
               masterPlaylist,
               playlistUrl
@@ -402,6 +541,39 @@
             );
 
             return this.downloadSegments(segmentUrls);
+          },
+          extractSubtitleLang(m3u8Content) {
+            // Split the content by lines
+            const lines = m3u8Content.split("\n");
+
+            // Loop through lines to find the subtitle information
+            for (const line of lines) {
+              if (
+                line.startsWith("#EXT-X-MEDIA") &&
+                line.includes("TYPE=SUBTITLES")
+              ) {
+                // Extract the LANGUAGE value using a regular expression
+                const langMatch = line.match(/LANGUAGE="([^"]+)"/);
+
+                if (langMatch) {
+                  return langMatch[1]; // Return the extracted language
+                }
+              }
+            }
+
+            return null; // Return null if no subtitle found
+          },
+          async setSubtitleUrl(playlistUrl, lang) {
+            this.subtitleLang = lang;
+
+            if (lang) {
+              this.subtitleUrl = await this.convertUrlToBlobUrl(
+                `${playlistUrl.replace(
+                  "playlist.m3u8",
+                  ""
+                )}subtitles/${lang}.vtt`
+              );
+            }
           },
           parseHighestQualityVideoUrl(masterPlaylist, baseUrl) {
             let highestBandwidth = 0;
@@ -432,6 +604,30 @@
             }
             return new Blob(chunks, { type: "video/MP2T" });
           },
+          async convertUrlToBlobUrl(url) {
+            try {
+              // Fetch the data from the URL
+              const response = await fetch(url);
+
+              // Check if the response is successful
+              if (!response.ok) {
+                throw new Error(
+                  `Failed to fetch data from URL: ${response.statusText}`
+                );
+              }
+
+              // Get the response as a blob
+              const blob = await response.blob();
+
+              // Create a Blob URL from the blob
+              const blobUrl = URL.createObjectURL(blob);
+
+              // Return the Blob URL
+              return blobUrl;
+            } catch (error) {
+              console.error("Error converting URL to Blob URL:", error);
+            }
+          },
           resetState() {
             this.status = "";
             this.progress = 0;
@@ -440,6 +636,9 @@
             this.downloadReady = false;
             this.thumbnailUrl = "";
             this.downloadLink = "";
+            this.playlistUrl = "";
+            this.subtitleLang = "";
+            this.originalDownloadLink = "";
           },
         },
       }).mount("#app");
