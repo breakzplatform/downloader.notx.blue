@@ -185,17 +185,17 @@
         <a
           v-if="downloadReady"
           :href="downloadLink"
-          class="block w-full bg-green-600 text-white text-center py-2 rounded hover:bg-green-700 transition-colors mb-2 font-bold text-xl"
-          download
-          >Download Converted (.mp4)</a
+          class="block w-full bg-green-700 text-white text-center py-2 rounded hover:bg-green-800 transition-colors mb-2 font-bold text-xl"
+          :download="`${postCid}.mp4`"
+          >Download converted (.mp4)</a
         >
 
         <a
           v-if="originalDownloadLink"
           :href="originalDownloadLink"
           class="block w-full bg-green-500 text-white text-center py-2 rounded hover:bg-green-600 transition-colors mb-2 font-bold"
-          download
-          >Download Original (.ts)</a
+          :download="`${postCid}.ts`"
+          >Download original (.ts)</a
         >
 
         <a
@@ -222,7 +222,7 @@
 
       <div class="py-4" v-if="videoPreviewVisible">
         <video
-          :key="postUrl"
+          :key="postCid"
           controls
           class="player rounded shadow overflow-hidden bg-black"
           preload="metadata"
@@ -253,7 +253,7 @@
           <tbody>
             <tr
               v-for="(url, index) in urlHistory"
-              :key="url"
+              :key="postCid"
               :class="{
                 'bg-gray-100': index % 2 !== 0,
                 'bg-gray-50': index % 2 === 0
@@ -332,6 +332,7 @@
           return {
             ffmpeg: null,
             postUrl: "",
+            postCid: "",
             status: "",
             progress: 0,
             convertProgress: 0,
@@ -358,8 +359,6 @@
             },
           });
 
-          if (!this.ffmpeg.isLoaded()) this.ffmpeg.load();
-
           // Check for the 'url' query parameter and set postUrl
           const urlParams = new URLSearchParams(window.location.search);
           const url = urlParams.get("url");
@@ -367,6 +366,8 @@
             this.postUrl = url;
             this.processVideo(); // Automatically run processVideo if the url is filled
           }
+
+          if (!this.ffmpeg.isLoaded()) await this.ffmpeg.load();
         },
         methods: {
           loadHistory() {
@@ -423,6 +424,8 @@
               `);
               const data = await threadRes.json();
 
+              this.postCid = data.thread.post.cid;
+
               let playlistUrl;
 
               if (
@@ -439,22 +442,24 @@
               this.status = "Downloading...";
               this.progressBarVisible = true;
 
-              const [videoBlob] = await Promise.all([
-                this.proccessPlaylist(playlistUrl),
-                this.ffmpeg.isLoaded() ? Promise.resolve() : this.ffmpeg.load(),
-              ]);
+              const videoBlob = await this.proccessPlaylist(playlistUrl);
 
               this.status = "Processing...";
 
               this.originalDownloadLink = URL.createObjectURL(videoBlob);
 
+              if (!this.ffmpeg.isLoaded()) await this.ffmpeg.load();
+
               this.status = "Converting to mp4...";
 
+              this.progress = 60;
               this.ffmpeg.FS(
                 "writeFile",
                 "input.ts",
                 await fetchFile(videoBlob)
               );
+
+              this.progress = 80;
 
               await this.ffmpeg.run(
                 "-i",
@@ -481,30 +486,33 @@
               // Save the current URL to the history
               this.saveToHistory(this.postUrl);
             } catch (error) {
-              this.status = "Downloading...";
-              const { profile, post } = this.extractProfileAndPost(
-                this.postUrl
-              );
-              const threadRes = await fetch(
-                `https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=at://${profile}/app.bsky.feed.post/${post}&depth=10`
-              );
-              const data = await threadRes.json();
+              if (this.originalDownloadLink.length === 0) {
+                this.status = "Downloading...";
+                const { profile, post } = this.extractProfileAndPost(
+                  this.postUrl
+                );
+                const threadRes = await fetch(
+                  `https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=at://${profile}/app.bsky.feed.post/${post}&depth=10`
+                );
+                const data = await threadRes.json();
 
-              let playlistUrl;
+                let playlistUrl;
 
-              if (
-                data.thread.post.embed["$type"] === "app.bsky.embed.video#view"
-              ) {
-                playlistUrl = data.thread.post.embed.playlist;
-              } else if (
-                data.thread.post.embed["$type"] ===
-                "app.bsky.embed.recordWithMedia#view"
-              ) {
-                playlistUrl = data.thread.post.embed.media.playlist;
+                if (
+                  data.thread.post.embed["$type"] ===
+                  "app.bsky.embed.video#view"
+                ) {
+                  playlistUrl = data.thread.post.embed.playlist;
+                } else if (
+                  data.thread.post.embed["$type"] ===
+                  "app.bsky.embed.recordWithMedia#view"
+                ) {
+                  playlistUrl = data.thread.post.embed.media.playlist;
+                }
+
+                const videoBlob = await this.proccessPlaylist(playlistUrl);
+                this.originalDownloadLink = URL.createObjectURL(videoBlob);
               }
-
-              const videoBlob = this.proccessPlaylist(playlistUrl);
-              this.originalDownloadLink = URL.createObjectURL(videoBlob);
 
               this.status =
                 error.message || "An error occurred. Please try again.";
@@ -639,6 +647,7 @@
             this.playlistUrl = "";
             this.subtitleLang = "";
             this.originalDownloadLink = "";
+            this.postCid = "";
           },
         },
       }).mount("#app");
