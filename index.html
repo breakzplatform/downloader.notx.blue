@@ -291,6 +291,21 @@
       </div>
     </div>
 
+    <div class="my-6 text-center text-xs lowercase">
+      <h2 class="mb-2 font-bold">Supporters</h2>
+      <div class="flex items-center gap-4 justify-center">
+        <a href="https://bsky.app/profile/frameacademy.com.br" class="shadow p-2 bg-white rounded">
+          <img
+            src="supporters/frameacademy.com.br.svg"
+            title="frameacademy.com.br"
+            class="rounded"
+            width="200"
+            height="150"
+          />
+        </a>
+      </div>
+    </div>
+
     <div class="mt-8 mb-6 text-center text-xs">
       <div class="lowercase mb-6">
         Directly from Brazil by Joselito, with much love and care. This site
@@ -423,6 +438,8 @@
                 https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=at://${profile}/app.bsky.feed.post/${post}&depth=10
               `);
               const data = await threadRes.json();
+
+              console.log(data);
 
               this.postCid = data.thread.post.cid;
 
